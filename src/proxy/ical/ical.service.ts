@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadGatewayException } from '@nestjs/common';
 import { UCursosProxyService } from '../ucursos/ucursos-proxy.service';
 import { ProxyHandler } from '../proxy-handler.interface';
 
@@ -14,7 +14,11 @@ export class ICalService implements ProxyHandler {
         return ICAL_PATH_PATTERN.test(path.toString().replace(/,/g, '/'));
     }
 
-    handleRequest(path: string, method: string, body: any, headers: any, query: Record<string, string> = {}): Promise<any> {
-        return this.proxyService.proxyRequest(path, method, body, headers, query);
+    async handleRequest(path: string, method: string, body: any, headers: any, query: Record<string, string> = {}): Promise<any> {
+        const data = await this.proxyService.proxyRequest(path, method, body, headers, query);
+        if (typeof data !== 'string' || !data.startsWith('BEGIN:VCALENDAR')) {
+            throw new BadGatewayException('Invalid iCal response');
+        }
+        return data;
     }
 }
