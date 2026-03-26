@@ -18,11 +18,16 @@ export class UCursosProxyService {
             if (key.toLowerCase() === 'cookie') delete headers[key];
         }
         headers['cookie'] = cookies;
+        headers['host'] = 'www.u-cursos.cl';
         if ('referer' in headers) {
-            headers['referer'] = headers['referer'].replace('localhost:3000', 'www.u-cursos.cl');
-        }
-        if ('host' in headers) {
-            headers['host'] = headers['host'].replace('localhost:3000', 'www.u-cursos.cl');
+            try {
+                const ref = new URL(headers['referer']);
+                ref.host = 'www.u-cursos.cl';
+                ref.protocol = 'https:';
+                headers['referer'] = ref.toString();
+            } catch {
+                headers['referer'] = 'https://www.u-cursos.cl/';
+            }
         }
         headers['Sec-GPC'] = '0';
         delete headers['if-none-match'];
