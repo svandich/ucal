@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { AxiosRequestConfig } from 'axios';
 import { firstValueFrom } from 'rxjs';
@@ -6,6 +6,8 @@ import { UCursosAuthService } from './ucursos-auth.service';
 
 @Injectable()
 export class UCursosProxyService {
+    private readonly logger = new Logger(UCursosProxyService.name);
+
     constructor(
         private httpService: HttpService,
         private authService: UCursosAuthService,
@@ -31,6 +33,9 @@ export class UCursosProxyService {
         const queryString = new URLSearchParams(query).toString();
         const url = `https://www.u-cursos.cl/${normalizedPath}${queryString ? `?${queryString}` : ''}`;
 
+        this.logger.debug(`Proxying ${method} ${url}`);
+        this.logger.debug(`Request cookies: ${cookies}`);
+
         const config: AxiosRequestConfig = {
             method,
             url,
@@ -45,6 +50,13 @@ export class UCursosProxyService {
                 httpsAgent: this.authService.httpsAgent,
             }),
         );
+
+        this.logger.debug(`Response status: ${response.status}`);
+        this.logger.debug(`Response set-cookie: ${JSON.stringify(response.headers['set-cookie'])}`);
+        if (response.status !== 200) {
+            this.logger.debug(`Response body (truncated): ${JSON.stringify(response.data).slice(0, 500)}`);
+        }
+
         return response.data;
     }
 }
