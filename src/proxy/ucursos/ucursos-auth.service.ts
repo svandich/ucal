@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -10,6 +10,7 @@ const HOME_URL = 'https://www.u-cursos.cl/';
 
 @Injectable()
 export class UCursosAuthService {
+    private readonly logger = new Logger(UCursosAuthService.name);
     private cachedCookies: string | null = null;
     private cookiesSetAt: number | null = null;
 
@@ -37,6 +38,7 @@ export class UCursosAuthService {
     private async login(): Promise<string> {
         const username = this.configService.get<string>('UCURSOS_USER') ?? '';
         const password = this.configService.get<string>('UCURSOS_PASS') ?? '';
+        this.logger.debug(`Logging in as user: ${username}`);
 
         // Step 1: GET home page to obtain session cookies
         const homeResponse = await firstValueFrom(
@@ -46,9 +48,11 @@ export class UCursosAuthService {
                 maxRedirects: 5,
             }),
         );
+        this.logger.debug(`Step 1 (home) status: ${homeResponse.status}`);
 
         const initialCookies = this.extractCookies(homeResponse.headers['set-cookie']);
         const cookieMap = this.parseCookieString(initialCookies);
+        this.logger.debug(`Step 1 cookies: ${initialCookies}`);
 
         // _sess and _LB are embedded in the up.js script URL in the HTML, not in cookies
         const html = homeResponse.data as string;
@@ -56,6 +60,7 @@ export class UCursosAuthService {
         const upJsParams = new URLSearchParams(upJsMatch?.[1] ?? '');
         const sess = upJsParams.get('_sess') ?? '';
         const lb = upJsParams.get('_LB') ?? cookieMap.get('_LB') ?? '';
+        this.logger.debug(`Step 1 _sess=${sess} _LB=${lb}`);
 
         // Step 2: POST credentials to /auth/api
         const formData = new URLSearchParams({
@@ -81,13 +86,17 @@ export class UCursosAuthService {
                 },
             }),
         );
+        this.logger.debug(`Step 2 (auth) status: ${authResponse.status}`);
+        this.logger.debug(`Step 2 response body: ${JSON.stringify(authResponse.data)}`);
 
         const authCookies = this.extractCookies(authResponse.headers['set-cookie']);
         const cookiesAfterAuth = this.mergeCookies(initialCookies, authCookies);
+        this.logger.debug(`Step 2 cookies: ${cookiesAfterAuth}`);
 
         // Step 3: follow the redirect chain manually to collect cookies at each hop
         const redirectUrl: string = authResponse.data?.u;
         if (!redirectUrl) throw new Error('[login] No redirect URL in auth response');
+        this.logger.debug(`Step 3 redirect URL: ${redirectUrl}`);
 
         let currentUrl = redirectUrl;
         let currentCookies = cookiesAfterAuth;
@@ -104,9 +113,11 @@ export class UCursosAuthService {
                     },
                 }),
             );
+            this.logger.debug(`Step 3 hop ${i} [${resp.status}] ${currentUrl}`);
 
             const hopCookies = this.extractCookies(resp.headers['set-cookie']);
             currentCookies = this.mergeCookies(currentCookies, hopCookies);
+            this.logger.debug(`Step 3 hop ${i} cookies: ${currentCookies}`);
 
             if (resp.status >= 300 && resp.status < 400 && resp.headers['location']) {
                 const loc = resp.headers['location'] as string;
@@ -116,6 +127,7 @@ export class UCursosAuthService {
             }
         }
 
+        this.logger.debug(`Login complete. Final cookies: ${currentCookies}`);
         return currentCookies;
     }
 
