@@ -2,10 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { AxiosRequestConfig } from 'axios';
 import { firstValueFrom } from 'rxjs';
+import * as https from 'https';
 import { UCursosAuthService } from './ucursos-auth.service';
 
 @Injectable()
 export class UCursosProxyService {
+    private readonly httpsAgent = new https.Agent({ rejectUnauthorized: false });
+
     constructor(
         private httpService: HttpService,
         private authService: UCursosAuthService,
@@ -47,7 +50,7 @@ export class UCursosProxyService {
         const response = await firstValueFrom(
             this.httpService.request({
                 ...config,
-                httpsAgent: this.authService.httpsAgent,
+                httpsAgent: this.httpsAgent,
             }),
         );
         return response.data;
