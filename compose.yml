@@ -1,0 +1,9 @@
+services:
+  ucal:
+    image: ucal
+    container_name: ucal
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    env_file:
+      - ./ucal.env

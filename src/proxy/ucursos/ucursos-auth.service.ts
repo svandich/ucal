@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { chromium } from 'playwright-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
-chromium.use(StealthPlugin());
+import { chromium, Page } from 'patchright';
 
 const COOKIE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 const UCURSOS_HOME = 'https://www.u-cursos.cl/';
@@ -42,22 +39,22 @@ export class UCursosAuthService {
         try {
             const context = await browser.newContext({
                 ignoreHTTPSErrors: true,
-                userAgent:
-                    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
                 viewport: { width: 1280, height: 720 },
             });
             const page = await context.newPage();
 
-            // Load the u-cursos home page so up.js generates a proper OAuth URL with state
+            // Load the u-cursos home page and submit the login form to reach the OAuth page with a proper state
             await page.goto(UCURSOS_HOME, { waitUntil: 'load' });
-            await page.waitForSelector('#authbox a', { timeout: 10000 });
-            const oauthUrl = await page.getAttribute('#authbox a', 'href');
-            if (!oauthUrl) throw new Error('[login] Could not find OAuth URL on u-cursos home page');
+            await page.waitForSelector('#boton_login', { timeout: 10000 });
+            await Promise.all([
+                page.waitForNavigation({ waitUntil: 'load', timeout: 20000 }),
+                page.click('#boton_login'),
+            ]);
 
-            await page.goto(oauthUrl, { waitUntil: 'load' });
-
-            // Give reCAPTCHA time to observe the session before interacting
+            // Give Turnstile time to observe the session before interacting
             await page.waitForTimeout(3000);
+
+            await this.solveTurnstile(page);
 
             await page.click('#usernameInput');
             await page.type('#usernameInput', username.toLowerCase(), { delay: 80 });
@@ -66,7 +63,7 @@ export class UCursosAuthService {
 
             // Brief pause before submit, simulates human review
             await page.waitForTimeout(1500);
-            await page.click('button[type="submit"]');
+            await page.click('#loginSubmitBtn');
             await page.waitForURL('https://www.u-cursos.cl/**', {
                 timeout: 30000,
                 waitUntil: 'load',
@@ -78,5 +75,32 @@ export class UCursosAuthService {
         } finally {
             await browser.close();
         }
+    }
+
+    private async solveTurnstile(page: Page): Promise<void> {
+        const widget = page.locator('#turnstileWidget');
+        if (!(await widget.count())) return;
+
+        const box = await widget.boundingBox();
+        if (!box) throw new Error('[login] Turnstile widget has no bounding box');
+
+        const clickX = box.x + 22;
+        const clickY = box.y + box.height / 2;
+        await page.mouse.move(clickX - 60, clickY - 30, { steps: 10 });
+        await page.waitForTimeout(200);
+        await page.mouse.move(clickX, clickY, { steps: 10 });
+        await page.waitForTimeout(200);
+        await page.mouse.click(clickX, clickY);
+
+        await page
+            .waitForFunction(
+                () =>
+                    (document.querySelector('input[name="cf-turnstile-response"]') as HTMLInputElement | null)
+                        ?.value,
+                { timeout: 15000 },
+            )
+            .catch(() => {
+                throw new Error('[login] Turnstile verification did not complete');
+            });
     }
 }

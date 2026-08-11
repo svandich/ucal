@@ -15,7 +15,7 @@ WORKDIR /app
 
 COPY package*.json ./
 RUN npm ci --omit=dev && \
-    npx playwright install --with-deps chromium && \
+    npx patchright install --with-deps chromium && \
     apt-get install -y xvfb && \
     rm -rf /var/lib/apt/lists/*
 
