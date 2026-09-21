@@ -1,15 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { IcalService } from './ical.service';
+import { ICalService } from './ical.service';
+import { UCursosProxyService } from '../ucursos/ucursos-proxy.service';
 
-describe('IcalService', () => {
-  let service: IcalService;
+describe('ICalService', () => {
+  let service: ICalService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [IcalService],
+      providers: [
+        ICalService,
+        { provide: UCursosProxyService, useValue: { proxyRequest: jest.fn() } },
+      ],
     }).compile();
 
-    service = module.get<IcalService>(IcalService);
+    service = module.get<ICalService>(ICalService);
   });
 
   it('should be defined', () => {
