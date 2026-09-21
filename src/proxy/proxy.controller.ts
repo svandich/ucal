@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, NotFoundException, Param, Headers, Query } from '@nestjs/common';
+import { Controller, Get, Header, Inject, NotFoundException, Param, Headers, Query } from '@nestjs/common';
 import { ProxyHandler } from './proxy-handler.interface';
 
 export const PROXY_HANDLERS = 'PROXY_HANDLERS';
@@ -8,6 +8,7 @@ export class ProxyController {
     constructor(@Inject(PROXY_HANDLERS) private handlers: ProxyHandler[]) {}
 
     @Get('*path')
+    @Header('Content-Type', 'text/calendar; charset=utf-8')
     async get(@Param('path') path: string, @Headers() headers: any, @Query() query: Record<string, string>) {
         const handler = this.handlers.find((h) => h.canHandle(path));
         if (!handler) throw new NotFoundException();
