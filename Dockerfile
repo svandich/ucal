@@ -23,4 +23,5 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "Xvfb :99 -screen 0 1280x720x24 -nolisten tcp & sleep 1 && DISPLAY=:99 node dist/main"]
+# Xvfb's lock file survives a container stop; clear it or Xvfb refuses to start on restart
+CMD ["sh", "-c", "rm -f /tmp/.X99-lock /tmp/.X11-unix/X99; Xvfb :99 -screen 0 1280x720x24 -nolisten tcp & sleep 1 && DISPLAY=:99 node dist/main"]
